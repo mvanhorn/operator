@@ -34,8 +34,8 @@ import (
 	"github.com/VictoriaMetrics/operator/internal/controller/operator/factory/vmanomaly"
 )
 
-// VMAnomalyModelReconciler reconciles a VMAnomalyModel object
-type VMAnomalyModelReconciler struct {
+// VMAnomalyConfigReconciler reconciles a VMAnomalyConfig object
+type VMAnomalyConfigReconciler struct {
 	client.Client
 	Log          logr.Logger
 	OriginScheme *runtime.Scheme
@@ -43,40 +43,36 @@ type VMAnomalyModelReconciler struct {
 }
 
 // Init implements crdController interface
-func (r *VMAnomalyModelReconciler) Init(rclient client.Client, l logr.Logger, sc *runtime.Scheme, cf *config.BaseOperatorConf) {
+func (r *VMAnomalyConfigReconciler) Init(rclient client.Client, l logr.Logger, sc *runtime.Scheme, cf *config.BaseOperatorConf) {
 	r.Client = rclient
-	r.Log = l.WithName("controller.VMAnomalyModel")
+	r.Log = l.WithName("controller.VMAnomalyConfig")
 	r.OriginScheme = sc
 	r.BaseConf = cf
 }
 
 // Scheme implements interface.
-func (r *VMAnomalyModelReconciler) Scheme() *runtime.Scheme {
+func (r *VMAnomalyConfigReconciler) Scheme() *runtime.Scheme {
 	return r.OriginScheme
 }
 
 // Reconcile general reconcile method for controller
-// +kubebuilder:rbac:groups=operator.victoriametrics.com,resources=vmanomalymodels,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=operator.victoriametrics.com,resources=vmanomalymodels/status,verbs=get;update;patch
-func (r *VMAnomalyModelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	instance := &vmv1.VMAnomalyModel{}
-	l := r.Log.WithValues("vmanomalymodel", req.Name, "namespace", req.Namespace)
+// +kubebuilder:rbac:groups=operator.victoriametrics.com,resources=vmanomalyconfigs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=operator.victoriametrics.com,resources=vmanomalyconfigs/status,verbs=get;update;patch
+func (r *VMAnomalyConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+	var instance vmv1.VMAnomalyConfig
+	l := r.Log.WithValues("vmanomalyconfig", req.Name, "namespace", req.Namespace)
 	ctx = logger.AddToContext(ctx, l)
 	defer func() {
-		result, err = handleReconcileErr(ctx, r.Client, instance, result, err)
+		result, err = handleReconcileErr(ctx, r.Client, &instance, result, err)
 	}()
 
-	// Fetch the VMAnomalyModel instance
-	if err = r.Get(ctx, req.NamespacedName, instance); err != nil {
-		err = &getError{err, "vmanomalymodel", req}
+	// Fetch the VMAnomalyConfig instance
+	if err = r.Get(ctx, req.NamespacedName, &instance); err != nil {
+		err = &getError{err, "vmanomalyconfig", req}
 		return
 	}
 
-	RegisterObjectStat(instance, "vmanomalymodel")
-	if instance.Spec.ParsingError != "" {
-		err = &parsingError{instance.Spec.ParsingError, "vmanomalymodel"}
-		return
-	}
+	RegisterObjectStat(&instance, "vmanomalyconfig")
 
 	if anomalyReconcileLimit.Throttle() {
 		// fast path, rate limited
@@ -89,13 +85,13 @@ func (r *VMAnomalyModelReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err = k8stools.ListObjectsByNamespace(ctx, r.Client, r.BaseConf.WatchNamespaces, func(dst *vmv1.VMAnomalyList) {
 		objects.Items = append(objects.Items, dst.Items...)
 	}); err != nil {
-		err = fmt.Errorf("cannot list vmanomalies for vmanomalymodel: %w", err)
+		err = fmt.Errorf("cannot list vmanomalies for vmanomalyconfig: %w", err)
 		return
 	}
 
 	for i := range objects.Items {
 		item := &objects.Items[i]
-		if !item.DeletionTimestamp.IsZero() || item.Spec.ParsingError != "" || item.Spec.ModelSelector.IsUnmanaged() {
+		if !item.DeletionTimestamp.IsZero() || item.Spec.ParsingError != "" || item.IsUnmanaged() {
 			continue
 		}
 		l := l.WithValues("vmanomaly", item.Name, "parent_namespace", item.Namespace)
@@ -104,16 +100,14 @@ func (r *VMAnomalyModelReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// since labels can be changed when updating and we can't tell if it was selected before, and we can't tell if it's creating or updating.
 		if !instance.DeletionTimestamp.IsZero() {
 			opts := &k8stools.SelectorOpts{
-				DefaultNamespace: instance.Namespace,
-				SelectAll:        item.Spec.SelectAllByDefault,
+				DefaultNamespace:  instance.Namespace,
+				SelectAll:         item.Spec.SelectAllByDefault,
+				ObjectSelector:    item.Spec.ConfigSelector,
+				NamespaceSelector: item.Spec.ConfigNamespaceSelector,
 			}
-			if item.Spec.ModelSelector != nil {
-				opts.ObjectSelector = item.Spec.ModelSelector.ObjectSelector
-				opts.NamespaceSelector = item.Spec.ModelSelector.NamespaceSelector
-			}
-			match, err := isSelectorsMatchesTargetCRD(ctx, r.Client, instance, item, opts)
+			match, err := isSelectorsMatchesTargetCRD(ctx, r.Client, &instance, item, opts)
 			if err != nil {
-				l.Error(err, "cannot match vmanomaly and vmanomalymodel")
+				l.Error(err, "cannot match vmanomaly and vmanomalyconfig")
 				continue
 			}
 			if !match {
@@ -121,7 +115,7 @@ func (r *VMAnomalyModelReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		}
 
-		if err := vmanomaly.CreateOrUpdateConfig(ctx, r, item, instance); err != nil {
+		if err := vmanomaly.CreateOrUpdateConfig(ctx, r, item, &instance); err != nil {
 			l.Error(err, "failed to update vmanomaly config")
 		}
 	}
@@ -129,14 +123,14 @@ func (r *VMAnomalyModelReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 // SetupWithManager general setup method
-func (r *VMAnomalyModelReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *VMAnomalyConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&vmv1.VMAnomalyModel{}).
+		For(&vmv1.VMAnomalyConfig{}).
 		WithEventFilter(predicate.TypedGenerationChangedPredicate[client.Object]{}).
 		WithOptions(getDefaultOptions()).
 		Complete(r)
 }
 
-func (r *VMAnomalyModelReconciler) IsDisabled(_ *config.BaseOperatorConf, disabledControllers sets.Set[string]) bool {
+func (r *VMAnomalyConfigReconciler) IsDisabled(_ *config.BaseOperatorConf, disabledControllers sets.Set[string]) bool {
 	return disabledControllers.Has("VMAnomaly")
 }

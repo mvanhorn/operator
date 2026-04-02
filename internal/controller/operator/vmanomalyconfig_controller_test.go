@@ -29,7 +29,7 @@ import (
 	vmv1 "github.com/VictoriaMetrics/operator/api/operator/v1"
 )
 
-var _ = Describe("VMAnomalyScheduler Controller", func() {
+var _ = Describe("VMAnomalyConfig Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -39,13 +39,13 @@ var _ = Describe("VMAnomalyScheduler Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		vmanomalyscheduler := &vmv1.VMAnomalyScheduler{}
+		vmanomalyconfig := &vmv1.VMAnomalyConfig{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind VMAnomalyScheduler")
-			err := k8sClient.Get(ctx, typeNamespacedName, vmanomalyscheduler)
+			By("creating the custom resource for the Kind VMAnomalyConfig")
+			err := k8sClient.Get(ctx, typeNamespacedName, vmanomalyconfig)
 			if err != nil && k8serrors.IsNotFound(err) {
-				resource := &vmv1.VMAnomalyScheduler{
+				resource := &vmv1.VMAnomalyConfig{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -58,16 +58,16 @@ var _ = Describe("VMAnomalyScheduler Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &vmv1.VMAnomalyScheduler{}
+			resource := &vmv1.VMAnomalyConfig{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance VMAnomalyScheduler")
+			By("Cleanup the specific resource instance VMAnomalyConfig")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &VMAnomalySchedulerReconciler{
+			controllerReconciler := &VMAnomalyConfigReconciler{
 				Client:       k8sClient,
 				OriginScheme: k8sClient.Scheme(),
 			}
