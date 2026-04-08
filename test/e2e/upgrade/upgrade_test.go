@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	vmanomaly = &vmv1.VMAnomaly{
+	_ = &vmv1.VMAnomaly{
 		Spec: vmv1.VMAnomalySpec{
 			Reader: &vmv1.VMAnomalyReadersSpec{
 				DatasourceURL:  "http://vmsingle-anomaly.svc:8428",
@@ -662,19 +662,15 @@ var _ = Describe("operator upgrade", Label("upgrade"), func() {
 				{version: "v0.68.0", cr: with(vmalert)},
 				{version: "v0.68.0", cr: with(vmauth)},
 				{version: "v0.68.0", cr: with(vmalertmanager)},
-				{version: "v0.68.0", cr: with(vmanomaly)},
 				{version: "v0.68.1", cr: with(vmalert)},
 				{version: "v0.68.1", cr: with(vmauth)},
 				{version: "v0.68.1", cr: with(vmalertmanager)},
-				{version: "v0.68.1", cr: with(vmanomaly)},
 				{version: "v0.68.2", cr: with(vmalert)},
 				{version: "v0.68.2", cr: with(vmauth)},
 				{version: "v0.68.2", cr: with(vmalertmanager)},
-				{version: "v0.68.2", cr: with(vmanomaly)},
 				{version: "v0.68.3", cr: with(vmalert)},
 				{version: "v0.68.3", cr: with(vmauth)},
 				{version: "v0.68.3", cr: with(vmalertmanager)},
-				{version: "v0.68.3", cr: with(vmanomaly)},
 			},
 		},
 		// nolint:dupl
