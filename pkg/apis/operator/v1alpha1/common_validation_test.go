@@ -50,6 +50,8 @@ func TestValidateCommonTargetNamespace(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if test.isOpenshift {
 				t.Setenv("PLATFORM", "openshift")
+			} else {
+				t.Setenv("PLATFORM", "")
 			}
 			cs.TargetNamespace = test.targetNamespace
 			errs := cs.validate("spec")

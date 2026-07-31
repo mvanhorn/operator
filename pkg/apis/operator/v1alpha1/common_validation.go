@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"slices"
 
 	"knative.dev/pkg/apis"
 )
@@ -36,24 +37,34 @@ func (ta *CommonSpec) validate(path string) *apis.FieldError {
 	if targetNamespace == "" {
 		errs = errs.Also(apis.ErrMissingField(targetNamespacePath))
 	} else {
-		if isReservedSystemNamespace(targetNamespace) {
-			errs = errs.Also(apis.ErrInvalidValue(targetNamespace, targetNamespacePath, fmt.Sprintf("'%s' is a reserved system namespace and is not allowed", targetNamespace)))
-		}
-		if IsOpenShiftPlatform() {
-			// "openshift-operators" namespace restricted in openshift environment
-			if targetNamespace == "openshift-operators" {
-				errs = errs.Also(apis.ErrInvalidValue(targetNamespace, targetNamespacePath, "'openshift-operators' namespace is not allowed"))
-			}
+		errs = errs.Also(ta.validateTargetNamespaceDenylist(path))
+	}
+	return errs
+}
+
+// validateTargetNamespaceDenylist rejects a targetNamespace that names a
+// reserved namespace. It is separate from validate so components that do not
+// require targetNamespace can adopt the denylist without also inheriting the
+// missing-field check.
+func (ta *CommonSpec) validateTargetNamespaceDenylist(path string) *apis.FieldError {
+	var errs *apis.FieldError
+	targetNamespace := ta.GetTargetNamespace()
+	if targetNamespace == "" {
+		return errs
+	}
+	targetNamespacePath := fmt.Sprintf("%s.targetNamespace", path)
+	if isReservedSystemNamespace(targetNamespace) {
+		errs = errs.Also(apis.ErrInvalidValue(targetNamespace, targetNamespacePath, fmt.Sprintf("'%s' is a reserved system namespace and is not allowed", targetNamespace)))
+	}
+	if IsOpenShiftPlatform() {
+		// "openshift-operators" namespace restricted in openshift environment
+		if targetNamespace == "openshift-operators" {
+			errs = errs.Also(apis.ErrInvalidValue(targetNamespace, targetNamespacePath, "'openshift-operators' namespace is not allowed"))
 		}
 	}
 	return errs
 }
 
 func isReservedSystemNamespace(namespace string) bool {
-	for _, reservedNamespace := range reservedSystemNamespaces {
-		if namespace == reservedNamespace {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(reservedSystemNamespaces, namespace)
 }

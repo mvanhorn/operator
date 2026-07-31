@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"gotest.tools/v3/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -53,4 +54,20 @@ func Test_ValidateTektonMulticlusterProxyAAE(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_ValidateTektonMulticlusterProxyAAE_TargetNamespaceDenylist(t *testing.T) {
+	tm := &TektonMulticlusterProxyAAE{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "tekton-multicluster-proxy-aae",
+		},
+		Spec: TektonMulticlusterProxyAAESpec{
+			CommonSpec: CommonSpec{
+				TargetNamespace: "kube-system",
+			},
+		},
+	}
+
+	err := tm.Validate(t.Context())
+	assert.Equal(t, "invalid value: kube-system: spec.targetNamespace\n'kube-system' is a reserved system namespace and is not allowed", err.Error())
 }

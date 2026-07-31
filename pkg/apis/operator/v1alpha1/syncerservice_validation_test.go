@@ -47,3 +47,19 @@ func TestSyncerService_ValidateCorrectName(t *testing.T) {
 	err := ss.Validate(t.Context())
 	assert.Equal(t, err.Error(), "")
 }
+
+func TestSyncerService_ValidateTargetNamespaceDenylist(t *testing.T) {
+	ss := &SyncerService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: SyncerServiceResourceName,
+		},
+		Spec: SyncerServiceSpec{
+			CommonSpec: CommonSpec{
+				TargetNamespace: "kube-system",
+			},
+		},
+	}
+
+	err := ss.Validate(t.Context())
+	assert.Equal(t, "invalid value: kube-system: spec.targetNamespace\n'kube-system' is a reserved system namespace and is not allowed", err.Error())
+}

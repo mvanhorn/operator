@@ -22,7 +22,11 @@ import (
 	"knative.dev/pkg/apis"
 )
 
-// Validate implements the validation contract for the webhook. Reserved for future use.
+// Validate implements the validation contract for the webhook.
 func (t *TektonMulticlusterProxyAAE) Validate(ctx context.Context) (errs *apis.FieldError) {
-	return nil
+	if apis.IsInDelete(ctx) {
+		return nil
+	}
+
+	return errs.Also(t.Spec.CommonSpec.validateTargetNamespaceDenylist("spec"))
 }

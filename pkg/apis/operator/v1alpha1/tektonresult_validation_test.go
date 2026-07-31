@@ -38,20 +38,42 @@ func TestTektonResult_Validate(t *testing.T) {
 }
 
 func TestTektonResult_ValidateTargetNamespaceDenylist(t *testing.T) {
-	tr := &TektonResult{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "result",
-			Namespace: "namespace",
-		},
-		Spec: TektonResultSpec{
-			CommonSpec: CommonSpec{
-				TargetNamespace: "kube-system",
-			},
-		},
+	tests := []struct {
+		name            string
+		targetNamespace string
+		err             string
+		isOpenshift     bool
+	}{
+		{name: "ns-kube-system", targetNamespace: "kube-system", err: "invalid value: kube-system: spec.targetNamespace\n'kube-system' is a reserved system namespace and is not allowed", isOpenshift: false},
+		{name: "ns-kube-public", targetNamespace: "kube-public", err: "invalid value: kube-public: spec.targetNamespace\n'kube-public' is a reserved system namespace and is not allowed", isOpenshift: false},
+		{name: "ns-kube-node-lease", targetNamespace: "kube-node-lease", err: "invalid value: kube-node-lease: spec.targetNamespace\n'kube-node-lease' is a reserved system namespace and is not allowed", isOpenshift: false},
+		{name: "ns-default", targetNamespace: "default", err: "invalid value: default: spec.targetNamespace\n'default' is a reserved system namespace and is not allowed", isOpenshift: false},
+		{name: "openshift-ns-openshift-operators", targetNamespace: "openshift-operators", err: "invalid value: openshift-operators: spec.targetNamespace\n'openshift-operators' namespace is not allowed", isOpenshift: true},
 	}
 
-	errs := tr.Validate(context.TODO())
-	assert.Equal(t, "invalid value: kube-system: spec.targetNamespace\n'kube-system' is a reserved system namespace and is not allowed", errs.Error())
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.isOpenshift {
+				t.Setenv("PLATFORM", "openshift")
+			} else {
+				t.Setenv("PLATFORM", "")
+			}
+			tr := &TektonResult{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "result",
+					Namespace: "namespace",
+				},
+				Spec: TektonResultSpec{
+					CommonSpec: CommonSpec{
+						TargetNamespace: test.targetNamespace,
+					},
+				},
+			}
+
+			errs := tr.Validate(context.TODO())
+			assert.Equal(t, test.err, errs.Error())
+		})
+	}
 }
 
 func TestTektonResultWatcherPerformancePropertiesValidate(t *testing.T) {
